@@ -305,19 +305,21 @@ def main():
         sys.exit(1)
     arg = json.loads(sys.argv[1])
     mode = arg["mode"]
-    logging.basicConfig(filename='/var/log/checker.log', filemode='w',
-                        format='%(asctime)s - %(levelname)s -  %(message)s',
-                        datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
-    logging.info("Executing checker")
-    if os.name == 'posix':
+    if os.name == 'poix':
         performance_checker = MacOSPerformanceChecker()
         application_checker = MacOSApplicationChecker()
+        log_path = '/var/log/checker.log'
     elif os.name == 'nt':
         performance_checker = WindowsPerformanceChecker()
         application_checker = WindowsApplicationChecker()
+        log_path = 'C:\\Logs\\checker.log'
     else:
-        raise NotImplementedError("This script only works on macOS or Windows.")
-
+        print("This script only works on macOS or Windows.")
+        sys.exit(1)
+    logging.basicConfig(filename=log_path, filemode='w',
+                        format='%(asctime)s - %(levelname)s -  %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
+    logging.info("Executing checker")
     match mode:
         case 'full-check':
             application_checker.app_adder('Zoom', 'https://zoom.us')
