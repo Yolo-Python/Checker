@@ -305,7 +305,7 @@ def main():
         sys.exit(1)
     arg = json.loads(sys.argv[1])
     mode = arg["mode"]
-    if os.name == 'poix':
+    if os.name == 'posix':
         performance_checker = MacOSPerformanceChecker()
         application_checker = MacOSApplicationChecker()
         log_path = '/var/log/checker.log'
@@ -314,7 +314,7 @@ def main():
         application_checker = WindowsApplicationChecker()
         log_path = 'C:\\Logs\\checker.log'
     else:
-        print("This script only works on macOS or Windows.")
+        print("This script only works on macOS or Windows. Exiting.")
         sys.exit(1)
     logging.basicConfig(filename=log_path, filemode='w',
                         format='%(asctime)s - %(levelname)s -  %(message)s',
