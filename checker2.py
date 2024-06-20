@@ -21,9 +21,9 @@ class BaseChecker(ABC):
         self.ship_log = True
 
     def email_log(self,
-                  subject,
-                  content,
-                  recipient_email,
+                  subject=None,
+                  content=None,
+                  recipient_email=None,
                   attachment_path=None,
                   smtpserver=None,
                   portnumber=None):
@@ -80,6 +80,16 @@ class PerformanceChecker(BaseChecker):
 
     @abstractmethod
     def encryption_check(self) -> int:
+        pass
+
+    @abstractmethod
+    def get_serial_number(self) -> str:
+        pass
+
+    def get_hostname(self) -> str:
+        pass
+
+    def get_username(self) -> str:
         pass
 
 
@@ -216,3 +226,58 @@ class WindowsApplicationChecker(ApplicationChecker):
 
     def app_remover(self, app_bundle):
         pass
+
+
+def main():
+    if len(sys.argv) < 2:
+        print("A JSON-formatted argument is required, e.g. '{\"mode\": \"full-check\"}' \n"
+              "Please try again")
+        sys.exit(1)
+    arg = json.loads(sys.argv[1])
+    mode = arg["mode"]
+    logging.basicConfig(filename='/var/log/checker.log', filemode='w',
+                        format='%(asctime)s - %(levelname)s -  %(message)s',
+                        datefmt='%Y-%m-%d %H:%M:%S', level=logging.INFO)
+    logging.info("Executing checker")
+    if os.name == 'posix':
+        performance_checker = MacOSPerformanceChecker()
+        application_checker = MacOSApplicationChecker()
+    elif os.name == 'nt':
+        performance_checker = WindowsPerformanceChecker()
+        application_checker = WindowsApplicationChecker()
+    else:
+        raise NotImplementedError("This script only works on macOS or Windows.")
+
+    match mode:
+        case 'full-check':
+            application_checker.app_adder('Zoom', 'https://zoom.us')
+            application_checker.app_adder('Google Chrome', 'https://www.google.com')
+            application_checker.app_adder('Slack', 'https://www.slack.com')
+            application_checker.app_remover('SpywareApp')
+            performance_checker.disk_space_check()
+            performance_checker.uptime_check()
+            performance_checker.encryption_check()
+        case 'applications':
+            application_checker.app_adder('Zoom', 'https://zoom.us')
+            application_checker.app_adder('Google Chrome', 'https://www.google.com')
+            application_checker.app_adder('Slack', 'https://www.slack.com')
+            application_checker.app_remover('SpywareApp')
+        case 'performance':
+            performance_checker.disk_space_check()
+            performance_checker.uptime_check()
+            performance_checker.encryption_check()
+        case _:
+            application_checker.app_adder('Zoom', 'https://zoom.us')
+            application_checker.app_adder('Google Chrome', 'https://www.google.com')
+            application_checker.app_adder('Slack', 'https://www.slack.com')
+            application_checker.app_remover('SpywareApp')
+            performance_checker.disk_space_check()
+            performance_checker.uptime_check()
+            performance_checker.encryption_check()
+
+    if application_checker.ship_log or performance_checker.ship_log:
+        application_checker.email_log()
+
+
+if __name__ == '__main__':
+    main()

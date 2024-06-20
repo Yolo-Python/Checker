@@ -57,7 +57,7 @@ def main():
             app_mode()
             performance_check()
     if state['ship_log']:
-        email_log('Test Email 2', 'Log file', 'memphis171@gmail.com', '/var/log/checker.log', 'smtp.mail.me.com', 587)
+        email_log('Test Email 2', 'Log file', 'email@example.com', '/var/log/checker.log', 'smtp.mail.me.com', 587)
 
 
 def errors(e, message="An error occurred"):
