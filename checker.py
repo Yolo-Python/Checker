@@ -2,7 +2,7 @@
 
 """
 Filename: checker.py
-Author: D
+Author: David Luis Clary
 Date: 2024-06-18
 Description: This script attempts to perform various app installation
     and performance checks against a macOS device.

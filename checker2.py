@@ -1,3 +1,16 @@
+#!/usr/bin/env python3
+
+"""
+Filename: checker2.py
+Author: David Luis Clary
+Date: 2024-06-20
+Description: This script attempts to perform various app installation
+    and performance checks against a macOS device.
+    Will automatically email log file depending on results of checker functions
+Usage:
+- checker2.py [options]
+"""
+
 from abc import ABC, abstractmethod
 import shutil
 import sys
@@ -11,6 +24,9 @@ from dotenv import load_dotenv
 
 
 class BaseChecker(ABC):
+    """
+    Base class for all checkers. Establishes error handling function and email_log function
+    """
     def __init__(self):
         self.ship_log = False
 
@@ -64,12 +80,18 @@ class BaseChecker(ABC):
                 server.send_message(msg)
                 print("Email sent successfully")
         except smtplib.SMTPAuthenticationError as e:
-            print(f"SMTP Authentication error: {e.smtp_code} - {e.smtp_error.decode('utf-8')}")
+            self.errors(e, "SMTP Authentication error")
+        except (ValueError, TypeError) as e:
+            self.errors(e, "Value or type error occurred while sending email")
         except Exception as e:
             print(f"Error sending email: {e}")
 
 
 class PerformanceChecker(BaseChecker):
+    """
+    Abstract class inheriting from BaseChecker to perform performance checks against a device.
+    Will also gather the device's serial number.
+    """
     @abstractmethod
     def disk_space_check(self) -> int:
         pass
@@ -83,17 +105,14 @@ class PerformanceChecker(BaseChecker):
         pass
 
     @abstractmethod
-    def get_serial_number(self) -> str:
-        pass
-
-    def get_hostname(self) -> str:
-        pass
-
-    def get_username(self) -> str:
+    def get_serial_number(self):
         pass
 
 
 class ApplicationChecker(BaseChecker):
+    """
+    Abstract class inheriting from BaseChecker to perform application checks against a device.
+    """
     @abstractmethod
     def app_adder(self, app_bundle: str, url: str):
         pass
@@ -104,6 +123,10 @@ class ApplicationChecker(BaseChecker):
 
 
 class MacOSPerformanceChecker(PerformanceChecker):
+    """
+    Class inheriting from PerformanceChecker to perform performance checks against a macOS device.
+    Also gathers the macOS device's serial number.
+    """
     def disk_space_check(self) -> int:
         """
         Attempts to calculate percentage of available disk space.
@@ -118,6 +141,12 @@ class MacOSPerformanceChecker(PerformanceChecker):
                 return 0
             logging.warning('%s%% available disk space', percent_free)
             self.ship_log = True
+            return 1
+        except OSError as e:
+            self.errors(e, "Error while checking disk space")
+            return 1
+        except (ValueError, TypeError) as e:
+            self.errors(e, "Value or type error occurred while sending email")
             return 1
         except Exception as e:
             self.errors(e, "Error while checking disk space")
@@ -144,8 +173,14 @@ class MacOSPerformanceChecker(PerformanceChecker):
                 return 1
             logging.info('Uptime is %s', output)
             return 0
-        except Exception as e:
+        except subprocess.CalledProcessError as e:
             self.errors(e, "Error while checking uptime")
+            return 1
+        except (ValueError, TypeError) as e:
+            self.errors(e, "Value or type error occurred while processing uptime")
+            return 1
+        except Exception as e:
+            self.errors(e, "An error occurred")
             return 1
 
     def encryption_check(self) -> int:
@@ -156,20 +191,46 @@ class MacOSPerformanceChecker(PerformanceChecker):
             it will confirm that logs should be shipped and return a 1.
         """
         try:
-            output = subprocess.run(['fdesetup', 'status'], text=True, capture_output=True, check=True)
-            fv_output = output.stdout.strip()
-            if "On" in fv_output:
-                logging.info('File vault status: %s', fv_output)
+            output = subprocess.check_output(['fdesetup', 'status']).decode('utf-8').strip()
+            if "On" in output:
+                logging.info('File vault status: %s', output)
                 return 0
-            logging.warning('File vault status: %s', fv_output)
+            logging.warning('File vault status: %s', output)
             self.ship_log = True
+            return 1
+        except subprocess.CalledProcessError as e:
+            self.errors(e, "Error while checking encryption")
+            return 1
+        except (ValueError, TypeError) as e:
+            self.errors(e, "Value or type error occurred while checking encryption")
             return 1
         except Exception as e:
             self.errors(e, "Error while checking encryption status")
             return 1
 
+    def get_serial_number(self):
+        """
+        Attempts to gather and return the serial number of the macOS device.
+        """
+        try:
+            output = subprocess.check_output(['system_profiler', 'SPHardwareDataType'])
+            output = output.decode('utf-8')
+
+            # Extract the serial number from the output
+            for line in output.split('\n'):
+                if "Serial Number (system):" in line:
+                    serial_number = line.split(":")[1].strip()
+                    return serial_number
+                return None
+        except subprocess.CalledProcessError as e:
+            self.errors(e, "Error while checking serial number")
+            return None
+
 
 class MacOSApplicationChecker(ApplicationChecker):
+    """
+    Class inheriting from ApplicationChecker to perform application checks against a macOS device.
+    """
     def app_adder(self, app_bundle, url, max_tries=3):
         """
         Attempts to determine if application is installed. If not found, it will attempt to install it.
@@ -210,6 +271,10 @@ class MacOSApplicationChecker(ApplicationChecker):
 
 
 class WindowsPerformanceChecker(PerformanceChecker):
+    """
+    Class inheriting from PerformanceChecker to perform performance checks against a Windows device.
+    Will also gather the Windows device's serial number.
+    """
     def disk_space_check(self) -> int:
         pass
 
@@ -219,8 +284,13 @@ class WindowsPerformanceChecker(PerformanceChecker):
     def encryption_check(self) -> int:
         pass
 
+    def get_serial_number(self):
+        pass
 
 class WindowsApplicationChecker(ApplicationChecker):
+    """
+    Class inheriting from ApplicationChecker to perform application checks against a Windows device.
+    """
     def app_adder(self, app_bundle, url, max_tries=3):
         pass
 
