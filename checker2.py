@@ -55,8 +55,7 @@ class BaseChecker:
         attachment_path: path to the log file; defaults to None
         """
         load_dotenv()
-        # email_address = os.getenv('EMAIL_ADDRESS')
-        # email_password = os.getenv('EMAIL_PASSWORD')
+
 
         msg = EmailMessage()
         msg['Subject'] = subject
@@ -97,15 +96,15 @@ class PerformanceChecker(BaseChecker, ABC):
         self.app_checker = app_checker
 
     @abstractmethod
-    def disk_space_check(self) -> int:
+    def disk_space_check(self) -> bool:
         pass
 
     @abstractmethod
-    def uptime_check(self) -> int:
+    def uptime_check(self) -> bool:
         pass
 
     @abstractmethod
-    def encryption_check(self) -> int:
+    def encryption_check(self) -> bool:
         pass
 
     @abstractmethod
@@ -228,7 +227,6 @@ class MacOSPerformanceChecker(PerformanceChecker):
                 if "Serial Number (system):" in line:
                     serial_number = line.split(":")[1].strip()
                     return serial_number
-                return None
         except subprocess.CalledProcessError as e:
             self.errors(e, "Error while checking serial number")
             return None
@@ -330,6 +328,7 @@ def main():
     logging.info("Executing checker")
     match mode:
         case 'full-check':
+            logging.info("macOS Serial Number: %s", performance_checker.get_serial_number())
             application_checker.app_adder('Zoom', 'https://zoom.us')
             application_checker.app_adder('Google Chrome', 'https://www.google.com')
             application_checker.app_adder('Slack', 'https://www.slack.com')
