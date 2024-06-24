@@ -23,7 +23,7 @@ from email.message import EmailMessage
 from dotenv import load_dotenv
 
 
-class BaseChecker(ABC):
+class BaseChecker:
     """
     Base class for all checkers. Establishes error handling function and email_log function
     """
@@ -87,11 +87,15 @@ class BaseChecker(ABC):
             print(f"Error sending email: {e}")
 
 
-class PerformanceChecker(BaseChecker):
+class PerformanceChecker(BaseChecker, ABC):
     """
     Abstract class inheriting from BaseChecker to perform performance checks against a device.
     Will also gather the device's serial number.
     """
+    def __init__(self, app_checker):
+        super().__init__()
+        self.app_checker = app_checker
+
     @abstractmethod
     def disk_space_check(self) -> int:
         pass
@@ -108,8 +112,11 @@ class PerformanceChecker(BaseChecker):
     def get_serial_number(self):
         pass
 
+    def add_app(self, app_bundle, url):
+        self.app_checker.app_adder(app_bundle, url)
 
-class ApplicationChecker(BaseChecker):
+
+class ApplicationChecker(BaseChecker, ABC):
     """
     Abstract class inheriting from BaseChecker to perform application checks against a device.
     """
@@ -127,7 +134,7 @@ class MacOSPerformanceChecker(PerformanceChecker):
     Class inheriting from PerformanceChecker to perform performance checks against a macOS device.
     Also gathers the macOS device's serial number.
     """
-    def disk_space_check(self) -> int:
+    def disk_space_check(self) -> bool:
         """
         Attempts to calculate percentage of available disk space.
         If disk space > 20%, the function returns 0.
@@ -138,21 +145,21 @@ class MacOSPerformanceChecker(PerformanceChecker):
             percent_free = round(free / total * 100, 2)
             if percent_free > 20.00:
                 logging.info('%s%% available disk space', percent_free)
-                return 0
+                return True
             logging.warning('%s%% available disk space', percent_free)
             self.ship_log = True
-            return 1
+            return False
         except OSError as e:
             self.errors(e, "Error while checking disk space")
-            return 1
+            return False
         except (ValueError, TypeError) as e:
             self.errors(e, "Value or type error occurred while sending email")
-            return 1
+            return False
         except Exception as e:
             self.errors(e, "Error while checking disk space")
-            return 1
+            return False
 
-    def uptime_check(self) -> int:
+    def uptime_check(self) -> bool:
         """
         Attempts to calculate the system's uptime.
         If the uptime less than 30 days, the function will return a 0.
@@ -167,23 +174,23 @@ class MacOSPerformanceChecker(PerformanceChecker):
                 total_seconds = num_days * 24 * 3600
                 if total_seconds < uptime_limit:
                     logging.info('Uptime is %s', output)
-                    return 0
+                    return True
                 logging.warning('Uptime limit exceeded: %s', output)
                 self.ship_log = True
-                return 1
+                return False
             logging.info('Uptime is %s', output)
-            return 0
+            return True
         except subprocess.CalledProcessError as e:
             self.errors(e, "Error while checking uptime")
-            return 1
+            return False
         except (ValueError, TypeError) as e:
             self.errors(e, "Value or type error occurred while processing uptime")
-            return 1
+            return False
         except Exception as e:
             self.errors(e, "An error occurred")
-            return 1
+            return False
 
-    def encryption_check(self) -> int:
+    def encryption_check(self) -> bool:
         """
         Attempts to determine encryption status.
         If encryption is On, the function will return a 0.
@@ -194,19 +201,19 @@ class MacOSPerformanceChecker(PerformanceChecker):
             output = subprocess.check_output(['fdesetup', 'status']).decode('utf-8').strip()
             if "On" in output:
                 logging.info('File vault status: %s', output)
-                return 0
+                return True
             logging.warning('File vault status: %s', output)
             self.ship_log = True
-            return 1
+            return False
         except subprocess.CalledProcessError as e:
             self.errors(e, "Error while checking encryption")
-            return 1
+            return False
         except (ValueError, TypeError) as e:
             self.errors(e, "Value or type error occurred while checking encryption")
-            return 1
+            return False
         except Exception as e:
             self.errors(e, "Error while checking encryption status")
-            return 1
+            return False
 
     def get_serial_number(self):
         """
@@ -298,6 +305,7 @@ class WindowsApplicationChecker(ApplicationChecker):
         pass
 
 
+# noinspection DuplicatedCode
 def main():
     if len(sys.argv) < 2:
         print("A JSON-formatted argument is required, e.g. '{\"mode\": \"full-check\"}' \n"
@@ -306,12 +314,12 @@ def main():
     arg = json.loads(sys.argv[1])
     mode = arg["mode"]
     if os.name == 'posix':
-        performance_checker = MacOSPerformanceChecker()
         application_checker = MacOSApplicationChecker()
+        performance_checker = MacOSPerformanceChecker(application_checker)
         log_path = '/var/log/checker.log'
     elif os.name == 'nt':
-        performance_checker = WindowsPerformanceChecker()
         application_checker = WindowsApplicationChecker()
+        performance_checker = WindowsPerformanceChecker(application_checker)
         log_path = 'C:\\Logs\\checker.log'
     else:
         print("This script only works on macOS or Windows. Exiting.")
@@ -326,29 +334,33 @@ def main():
             application_checker.app_adder('Google Chrome', 'https://www.google.com')
             application_checker.app_adder('Slack', 'https://www.slack.com')
             application_checker.app_remover('SpywareApp')
-            performance_checker.disk_space_check()
-            performance_checker.uptime_check()
-            performance_checker.encryption_check()
+            if (performance_checker.disk_space_check()
+                    and performance_checker.uptime_check()
+                    and performance_checker.encryption_check()):
+                performance_checker.add_app('Spotify', 'https://spotify.com')
         case 'applications':
             application_checker.app_adder('Zoom', 'https://zoom.us')
             application_checker.app_adder('Google Chrome', 'https://www.google.com')
             application_checker.app_adder('Slack', 'https://www.slack.com')
+            application_checker.app_adder('Spotify', 'https://spotify.com')
             application_checker.app_remover('SpywareApp')
         case 'performance':
-            performance_checker.disk_space_check()
-            performance_checker.uptime_check()
-            performance_checker.encryption_check()
+            if (performance_checker.disk_space_check()
+                    and performance_checker.uptime_check()
+                    and performance_checker.encryption_check()):
+                performance_checker.add_app('Spotify', 'https://spotify.com')
         case _:
             application_checker.app_adder('Zoom', 'https://zoom.us')
             application_checker.app_adder('Google Chrome', 'https://www.google.com')
             application_checker.app_adder('Slack', 'https://www.slack.com')
             application_checker.app_remover('SpywareApp')
-            performance_checker.disk_space_check()
-            performance_checker.uptime_check()
-            performance_checker.encryption_check()
+            if (performance_checker.disk_space_check()
+                    and performance_checker.uptime_check()
+                    and performance_checker.encryption_check()):
+                performance_checker.add_app('Spotify', 'https://spotify.com')
 
     if application_checker.ship_log or performance_checker.ship_log:
-        application_checker.email_log()
+        application_checker.email_log() #Parameters required
 
 
 if __name__ == '__main__':
