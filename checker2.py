@@ -359,7 +359,10 @@ def main():
                 performance_checker.add_app('Spotify', 'https://spotify.com')
 
     if application_checker.ship_log or performance_checker.ship_log:
-        application_checker.email_log() #Parameters required
+        try:
+            application_checker.email_log() #Parameters required
+        except Exception as e:
+            print("An error occurred. Did you add required parameters to email_log()?")
 
 
 if __name__ == '__main__':
